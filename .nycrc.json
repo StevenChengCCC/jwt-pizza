@@ -1,0 +1,12 @@
+{
+    "check-coverage": true,
+    "branches": 0,
+    "lines": 80,
+    "functions": 0,
+    "statements": 0,
+    "reporter": ["json-summary", "text", "html"],
+    "all": false,
+    "extension": [".ts", ".tsx", ".js", ".jsx"],
+    "exclude": ["**/tests/**", "**/*.spec.*"]
+  }
+  
