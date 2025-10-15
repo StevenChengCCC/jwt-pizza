@@ -53,6 +53,24 @@ class HttpPizzaService implements PizzaService {
     return Promise.resolve(user);
   }
 
+  async updateUser(user: User): Promise<User> {
+    if (!user.id) {
+      throw new Error('User id is required');
+    }
+
+    const { user: updatedUser, token } = await this.callEndpoint(`/api/user/${user.id}`, 'PUT', {
+      name: user.name,
+      email: user.email,
+      password: user.password,
+    });
+
+    if (token) {
+      localStorage.setItem('token', token);
+    }
+
+    return Promise.resolve(updatedUser);
+  }
+
   logout(): void {
     this.callEndpoint('/api/auth', 'DELETE');
     localStorage.removeItem('token');
