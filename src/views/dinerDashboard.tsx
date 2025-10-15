@@ -13,34 +13,89 @@ interface Props {
 }
 
 export default function DinerDashboard(props: Props) {
-  const user = props.user || ({} as User);
+  const fallbackUser = props.user || ({} as User);
   const [orders, setOrders] = React.useState<Order[]>([]);
+  const [profile, setProfile] = React.useState<User>(fallbackUser);
   const nameRef = React.useRef<HTMLInputElement>(null);
   const emailRef = React.useRef<HTMLInputElement>(null);
   const passwordRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     (async () => {
-      if (user) {
-        const r: OrderHistory = await pizzaService.getOrders(user);
+      if (profile?.id) {
+        const r: OrderHistory = await pizzaService.getOrders(profile);
         setOrders(r.orders);
       }
     })();
-  }, [user]);
+  }, [profile?.id]);
+
+  React.useEffect(() => {
+    if (props.user) {
+      setProfile(props.user);
+    }
+  }, [props.user]);
+
+  React.useEffect(() => {
+    if (nameRef.current) {
+      nameRef.current.value = profile?.name ?? '';
+    }
+    if (emailRef.current) {
+      emailRef.current.value = profile?.email ?? '';
+    }
+    if (passwordRef.current) {
+      passwordRef.current.value = '';
+    }
+  }, [profile]);
 
   async function updateUser() {
-    let updatedUser: User = {
-      id: user.id,
-      name: nameRef.current?.value,
-      email: emailRef.current?.value,
-      password: passwordRef.current?.value || undefined,
-      roles: user.roles,
+    if (!profile?.id) {
+      return;
+    }
+
+    const updatedUser: User = {
+      id: profile.id,
+      name: nameRef.current?.value?.trim() || profile.name,
+      email: emailRef.current?.value?.trim() || profile.email,
+      password: passwordRef.current?.value ? passwordRef.current.value : undefined,
+      roles: profile.roles,
     };
-  
-    props.setUser(updatedUser);
-    setTimeout(() => {
-      HSOverlay.close(document.getElementById('hs-jwt-modal')!);
-    }, 100);
+
+    const normalizedUser: User = {
+      ...profile,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      roles: updatedUser.roles ?? profile.roles,
+    };
+
+    setProfile(normalizedUser);
+    props.setUser(normalizedUser);
+
+    try {
+      const savedUser = await pizzaService.updateUser(updatedUser);
+      const persistedUser: User = {
+        ...normalizedUser,
+        ...savedUser,
+        id: savedUser.id ?? normalizedUser.id,
+        roles: savedUser.roles ?? normalizedUser.roles,
+      };
+      setProfile(persistedUser);
+      props.setUser(persistedUser);
+    } catch (e) {
+      setProfile(normalizedUser);
+      props.setUser(normalizedUser);
+    } finally {
+      if (passwordRef.current) {
+        passwordRef.current.value = '';
+      }
+
+      setTimeout(() => {
+        const modal = document.getElementById('hs-jwt-modal');
+        if (modal) {
+          HSOverlay.close(modal);
+          (window as any).HSOverlay?.close?.(modal);
+        }
+      }, 100);
+    }
   }
 
   function formatRole(role: { role: Role; objectId?: string }) {
@@ -70,12 +125,12 @@ export default function DinerDashboard(props: Props) {
         />
 
         <div className="my-4 text-lg text-orange-200 text-start grid grid-cols-5 gap-2">
-          <div className="font-semibold text-orange-400">name:</div> <div className="col-span-4">{user.name}</div>
-          <div className="font-semibold text-orange-400">email:</div> <div className="col-span-4">{user.email}</div>
+          <div className="font-semibold text-orange-400">name:</div> <div className="col-span-4">{profile?.name}</div>
+          <div className="font-semibold text-orange-400">email:</div> <div className="col-span-4">{profile?.email}</div>
           <div className="font-semibold text-orange-400">role:</div>{' '}
           <div className="col-span-4">
-            {user.roles &&
-              user.roles.map((role, index) => (
+            {profile?.roles &&
+              profile.roles.map((role, index) => (
                 <span key={index}>
                   {index === 0 ? '' : ', '} {formatRole(role)}
                 </span>
@@ -158,14 +213,14 @@ export default function DinerDashboard(props: Props) {
                 <input
                   type="text"
                   className="col-span-4 border border-gray-300 rounded-md p-1"
-                  defaultValue={user.name}
+                  defaultValue={profile?.name}
                   ref={nameRef}
                 />
                 <div className="font-semibold">email:</div>
                 <input
                   type="email"
                   className="col-span-4 border border-gray-300 rounded-md p-1"
-                  defaultValue={user.email}
+                  defaultValue={profile?.email}
                   ref={emailRef}
                 />
                 <div className="font-semibold">password:</div>
