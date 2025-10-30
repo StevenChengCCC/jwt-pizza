@@ -53,7 +53,8 @@ jobs:
               id-token: write
             runs-on: ubuntu-latest
             env:
-              version: ${{needs.build.outputs.version}}
+              version: ${{ needs.build.outputs.version }}
+          
             steps:
               - name: Create OIDC token to AWS
                 uses: aws-actions/configure-aws-credentials@v4
@@ -61,6 +62,11 @@ jobs:
                   audience: sts.amazonaws.com
                   aws-region: us-east-1
                   role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT }}:role/${{ secrets.CI_IAM_ROLE }}
+          
+              - name: Who am I
+                run: |
+                  aws sts get-caller-identity
+                  echo "Bucket: ${{ secrets.APP_BUCKET }}"
           
               - name: Download dist artifact
                 uses: actions/download-artifact@v4
@@ -70,6 +76,15 @@ jobs:
           
               - name: Push to AWS S3
                 run: |
-                  echo Deploying $version
-                  aws s3 cp dist s3://${{ secrets.APP_BUCKET }} --recursive
-                  aws cloudfront create-invalidation --distribution-id ${{ secrets.DISTRIBUTION_ID }} --paths "/*"
+                  echo "Deploying $version"
+                  # 若策略已有 DeleteObject，推荐用 sync --delete 保持干净
+                  aws s3 sync dist s3://${{ secrets.APP_BUCKET }} --delete
+                  # 如果还没给 DeleteObject，就用下面这行替代：
+                  # aws s3 cp dist s3://${{ secrets.APP_BUCKET }} --recursive
+          
+              - name: Invalidate CloudFront
+                run: |
+                  aws cloudfront create-invalidation \
+                    --distribution-id ${{ secrets.DISTRIBUTION_ID }} \
+                    --paths "/*"
+          
